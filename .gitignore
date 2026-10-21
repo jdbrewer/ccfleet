@@ -1,0 +1,4 @@
+bin/
+.claude-flow/
+.swarm/
+ruvector.db
