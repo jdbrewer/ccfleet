@@ -4,15 +4,7 @@ A board for all your Claude Code sessions in tmux. It shows which ones are block
 which finished while you weren't looking, and what the rest are doing. Jump to any of them
 in one keystroke.
 
-```
- ccfleet   ⏸ 1 waiting  ✓ 2 done  ● 6 working  ○ 14 idle                group:state  ?:help
- NEEDS YOU
-▸ ⏸   4m  api-3f            api           feat/rate-limits    94%  Add per-tenant rate limits
-  ✓  12m  web-f8            web           fix/login-redirect  65%  Fix login redirect loop
- WORKING
-  ●⚠  2h  api-c5            api           feat/rate-limits    70%  Rate limit metrics dashboard
-  ...
-```
+![ccfleet board: one session waiting on a permission prompt, two finished, five working](docs/img/board.png)
 
 ## Why
 
@@ -27,6 +19,11 @@ the tmux status line. You check it when you choose to.
 | ● | working | busy. An orange age means no activity for 10 minutes, so it may be stuck |
 | ○ | idle | finished, and you've seen it |
 | ⚠ | collision | another session in the same checkout edited the same file in the last 30 minutes, or is working on the same branch |
+
+Press `/` to search every session's transcript, not just titles. It's handy when all you
+remember is a name or a phrase from your prompt:
+
+![searching for "ada" finds three sessions, with the matching line from each prompt](docs/img/search.png)
 
 A session counts as seen when its pane is visible, when you jump to it, or when you press `x`.
 With the optional focus hook, focusing the pane anywhere in tmux also counts.
@@ -78,6 +75,9 @@ ccfleet only reads files. It needs no hooks and no daemon. It joins:
 - `~/.claude/projects/*/<sessionId>.jsonl`: title, branch, current tool, context size, edited files (tailed by byte offset)
 - `~/.claude/teams/*/config.json`: agent-team lead and teammates
 - `tmux list-panes` / `capture-pane`: which panes are visible, plus the peek
+
+The screenshots come from a made-up fleet. `python3 scripts/demo/demo.py` rebuilds them,
+and `--keep` leaves the demo tmux session running so you can try the board without real sessions.
 
 These are internal Claude Code formats and may change. All the parsing lives in `internal/fleet`.
 `CLAUDE_CONFIG_DIR` and `XDG_STATE_HOME` are honoured.
