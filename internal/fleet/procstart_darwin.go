@@ -14,3 +14,12 @@ func procStart(pid int) (time.Time, bool) {
 	}
 	return time.Unix(kp.Proc.P_starttime.Sec, int64(kp.Proc.P_starttime.Usec)*1000), true
 }
+
+// procParent returns pid's parent pid, or 0.
+func procParent(pid int) int {
+	kp, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
+	if err != nil {
+		return 0
+	}
+	return int(kp.Eproc.Ppid)
+}

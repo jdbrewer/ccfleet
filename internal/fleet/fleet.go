@@ -136,11 +136,16 @@ func (f *Fleet) snapshot(lite bool) ([]Session, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	now := f.now()
-	raws, err := loadSessions(filepath.Join(f.cfg.ClaudeDir, "sessions"), f.alive)
-	if err != nil {
+	panes := f.panes()
+	raws, parsed, err := loadSessions(filepath.Join(f.cfg.ClaudeDir, "sessions"), f.alive)
+	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
-	panes := f.panes()
+	if !parsed || os.Getenv("CCFLEET_SOURCE") == "cli" {
+		if raws, err = loadFromCLI(f.alive, panes); err != nil {
+			return nil, err
+		}
+	}
 	if !lite {
 		f.teams.refresh()
 	}
@@ -178,6 +183,9 @@ func (f *Fleet) snapshot(lite bool) ([]Session, error) {
 		if !lite {
 			s.Team, s.Role = f.teams.lookup(s.ID, s.Tmux.Pane)
 			s.Info = f.transcript(r.SessionID, now)
+		}
+		if r.StatusUpdatedAt == 0 && !s.Info.LastEventAt.IsZero() {
+			s.StateSince = s.Info.LastEventAt // CLI fallback has no status timestamp
 		}
 		s.State = deriveState(r.Status, s.StateSince, f.seen.at(s.ID))
 		out = append(out, s)

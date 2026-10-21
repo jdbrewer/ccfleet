@@ -6,7 +6,9 @@ package fleet
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -82,16 +84,20 @@ func defaultProcAlive(rs []rawSession) map[int]bool {
 }
 
 // loadSessions returns live sessions from dir, skipping non-json and dead pids.
-func loadSessions(dir string, alive procAlive) ([]rawSession, error) {
+// parsed is false when json files exist but none could be read as a session, i.e. the
+// format has changed under us.
+func loadSessions(dir string, alive procAlive) (live []rawSession, parsed bool, err error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	var all []rawSession
+	files := 0
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
+		files++
 		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
 		if err != nil {
 			continue // removed between ReadDir and ReadFile
@@ -102,14 +108,46 @@ func loadSessions(dir string, alive procAlive) ([]rawSession, error) {
 		}
 		all = append(all, r)
 	}
-	live := alive(all)
-	out := all[:0]
+	ok := alive(all)
 	for _, r := range all {
-		if live[r.PID] {
-			out = append(out, r)
+		if ok[r.PID] {
+			live = append(live, r)
 		}
 	}
-	return out, nil
+	return live, files == 0 || len(all) > 0, nil
+}
+
+// loadFromCLI asks `claude agents --json`, the documented interface, for the sessions.
+// It is slower and has no tmux pane or status timestamp, so it is only the fallback
+// for when the session files can't be read; panes are found by process ancestry.
+func loadFromCLI(alive procAlive, panes map[string]Pane) ([]rawSession, error) {
+	out, err := exec.Command("claude", "agents", "--json").Output()
+	if err != nil {
+		return nil, fmt.Errorf("session files unreadable and `claude agents --json` failed: %w", err)
+	}
+	var all []rawSession
+	if err := json.Unmarshal(out, &all); err != nil {
+		return nil, fmt.Errorf("parse `claude agents --json`: %w", err)
+	}
+	byPID := map[int]Pane{}
+	for _, p := range panes {
+		byPID[p.PID] = p
+	}
+	ok := alive(all)
+	var live []rawSession
+	for _, r := range all {
+		if !ok[r.PID] {
+			continue
+		}
+		for pid, hops := r.PID, 0; pid > 1 && hops < 4; pid, hops = procParent(pid), hops+1 {
+			if p, found := byPID[pid]; found {
+				r.Tmux = p.Session + ":" + p.WindowID + "." + p.ID
+				break
+			}
+		}
+		live = append(live, r)
+	}
+	return live, nil
 }
 
 func msTime(ms int64) time.Time {

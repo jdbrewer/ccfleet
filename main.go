@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -13,6 +14,19 @@ import (
 	"github.com/jdbrewer/ccfleet/internal/fleet"
 	"github.com/jdbrewer/ccfleet/internal/tui"
 )
+
+// version is set by release builds (-ldflags "-X main.version=1.2.3").
+var version = ""
+
+func buildVersion() string {
+	if version != "" {
+		return version
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return strings.TrimPrefix(bi.Main.Version, "v") // go install module@v1.2.3
+	}
+	return "dev"
+}
 
 const usage = `ccfleet: a board for your Claude Code sessions
 
@@ -22,11 +36,15 @@ usage:
   ccfleet grep TERMS...    find sessions whose transcript or metadata mention all TERMS
   ccfleet badge            short needs-you summary for tmux status-right
   ccfleet tmux-snippet     print tmux.conf lines: popup binding, badge, focus hook
+  ccfleet --version
 `
 
 func main() {
 	args := os.Args[1:]
 	cmd := ""
+	if len(args) > 0 && (args[0] == "--version" || args[0] == "-v") {
+		args[0] = "version"
+	}
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		cmd, args = args[0], args[1:]
 	}
@@ -42,6 +60,8 @@ func main() {
 		err = runBadge()
 	case "tmux-snippet":
 		os.Stdout.WriteString(tmuxSnippet)
+	case "version":
+		fmt.Println("ccfleet", buildVersion())
 	case "help", "-h", "--help":
 		fmt.Print(usage)
 	default:

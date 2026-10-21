@@ -4,7 +4,7 @@ A board for all your Claude Code sessions in tmux. It shows which ones are block
 which finished while you weren't looking, and what the rest are doing. Jump to any of them
 in one keystroke.
 
-![ccfleet board: one session waiting on a permission prompt, two finished, five working](docs/img/board.png)
+![ccfleet tour: the board opens on a session waiting on a permission prompt, moves through finished sessions, searches transcripts for a name, then groups by tmux window](docs/img/tour.gif)
 
 ## Why
 
@@ -31,16 +31,26 @@ With the optional focus hook, focusing the pane anywhere in tmux also counts.
 ## Install
 
 ```sh
-go install github.com/jdbrewer/ccfleet@latest   # lands in $(go env GOPATH)/bin; put that on PATH
-# or from a clone: go build -o ~/.local/bin/ccfleet .
+brew tap jdbrewer/ccfleet https://github.com/jdbrewer/ccfleet
+brew install ccfleet
+```
+
+Or download a binary for macOS or Linux from [Releases](https://github.com/jdbrewer/ccfleet/releases),
+or `go install github.com/jdbrewer/ccfleet@latest` (lands in `$(go env GOPATH)/bin`).
+
+Then add the tmux bindings:
+
+```sh
 ccfleet tmux-snippet               # review it, then append it to ~/.tmux.conf
 tmux source ~/.tmux.conf
 ```
 
-Requires tmux 3.2+ (popups) and Go 1.24+. Developed on macOS; Linux should work.
+The snippet binds `prefix a` to open the board in a popup (Enter jumps and the popup closes).
+It adds the badge to `status-right` and sets `status-interval 5`. It also adds an optional
+`pane-focus-in` hook and sets `focus-events on`, which the hook needs.
 
-The snippet binds `prefix a` to open the board in a popup (Enter jumps and the popup closes),
-adds the badge to `status-right` and sets `status-interval 5`, and adds an optional `pane-focus-in` hook. The hook needs `focus-events on`, which the snippet also sets.
+Requires tmux 3.2+ (popups) and Claude Code. It runs on macOS and Linux. CI runs an
+end-to-end check on both against a fake fleet of sessions in real tmux.
 
 ## Commands
 
@@ -76,8 +86,32 @@ ccfleet only reads files. It needs no hooks and no daemon. It joins:
 - `~/.claude/teams/*/config.json`: agent-team lead and teammates
 - `tmux list-panes` / `capture-pane`: which panes are visible, plus the peek
 
-The screenshots come from a made-up fleet. `python3 scripts/demo/demo.py` rebuilds them,
-and `--keep` leaves the demo tmux session running so you can try the board without real sessions.
-
-These are internal Claude Code formats and may change. All the parsing lives in `internal/fleet`.
 `CLAUDE_CONFIG_DIR` and `XDG_STATE_HOME` are honoured.
+
+## Limitations
+
+- **It reads Claude Code's internal files.** Those formats aren't a public API and can change
+  in any release. The parsing is isolated in `internal/fleet`. If the session files stop
+  parsing, ccfleet falls back to the documented `claude agents --json` and finds panes through
+  the process tree. You keep the board, but lose how long each session has been in its state.
+- **Jump and peek need tmux.** `ccfleet ls` and `ccfleet grep` work anywhere.
+- **Search covers live sessions only**, and only the first 16KB of each tool output.
+- **Collisions only see Claude's Edit and Write tools.** A file changed with `sed` in Bash isn't counted.
+- **"Done" depends on knowing what you've looked at**: visible panes, jumps, `x`, and the
+  optional focus hook. A pane you read without focusing it still counts as unseen.
+- **Context % assumes a 200k window**, unless the model name or token count says 1M.
+- macOS and Linux only.
+
+## Similar tools
+
+| Tool | What it is | Where ccfleet differs |
+|---|---|---|
+| Claude Code's agent view (`claude agents`) | Built-in dashboard for dispatching and supervising background sessions | Watches the interactive sessions you already run in tmux panes, and adds a live peek, jump, transcript search and collision warnings |
+| [tmux-claude-hatch](https://github.com/craftzdog/tmux-claude-hatch) | tmux plugin that runs a Claude session per project in a popup, with an fzf picker (status and preview) and a bell on the window that needs you | Closest in spirit. ccfleet hosts nothing: it watches sessions wherever they already run, uses a quiet queue instead of bells, and adds full-transcript search, collisions and teams |
+| [claude-squad](https://github.com/smtg-ai/claude-squad) | Launches and manages agents, each in its own tmux session and git worktree | ccfleet launches nothing. It's read-only over whatever you already run |
+| [ccmanager](https://github.com/kbwo/ccmanager) | Session manager across git worktrees, no tmux | ccfleet is tmux-native: popup, jump, pane peek |
+| [atm](https://docs.rs/crate/atm) | Rust dashboard plus daemon that can spawn, kill and message agents, with cost tracking | ccfleet has no daemon and doesn't control agents. It stays out of the way and tells you where to look |
+
+The screenshots come from a made-up fleet. `python3 scripts/demo/demo.py` rebuilds them,
+`--keep` leaves the demo tmux session running so you can try the board without real sessions,
+and `--check` runs the same end-to-end assertions as CI.

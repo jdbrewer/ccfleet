@@ -53,8 +53,8 @@ func TestLoadSessionsSkipsDeadAndNonJSON(t *testing.T) {
 	write(t, dir, "200.json", `{"pid":200,"sessionId":"b","status":"idle"}`)
 	write(t, dir, "100.abc.key", `secret`)
 	write(t, dir, "300.json", `{not json`)
-	got, err := loadSessions(dir, func([]rawSession) map[int]bool { return map[int]bool{100: true} })
-	if err != nil {
+	got, parsed, err := loadSessions(dir, func([]rawSession) map[int]bool { return map[int]bool{100: true} })
+	if err != nil || !parsed {
 		t.Fatal(err)
 	}
 	if len(got) != 1 || got[0].SessionID != "a" {
@@ -241,5 +241,17 @@ func TestSeenSurvivesEmptyRead(t *testing.T) {
 	}
 	if !s.at("old").IsZero() {
 		t.Error("stale mark kept")
+	}
+}
+
+func TestLoadSessionsDetectsFormatChange(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "1.json", `{"processId":1,"id":"renamed fields"}`)
+	if _, parsed, _ := loadSessions(dir, func([]rawSession) map[int]bool { return nil }); parsed {
+		t.Error("unrecognised session files reported as parsed; the CLI fallback would never run")
+	}
+	empty := t.TempDir()
+	if _, parsed, _ := loadSessions(empty, func([]rawSession) map[int]bool { return nil }); !parsed {
+		t.Error("an empty sessions dir is not a format change")
 	}
 }

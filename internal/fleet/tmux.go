@@ -15,12 +15,13 @@ type Pane struct {
 	WindowIndex string
 	WindowName  string
 	PaneIndex   string
+	PID         int  // the pane's root process, usually a shell
 	Visible     bool // active pane of the active window of an attached session
 	SeenAt      int64
 }
 
 const paneFormat = "#{pane_id}\t#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{pane_index}\t" +
-	"#{&&:#{&&:#{pane_active},#{window_active}},#{session_attached}}\t#{@ccfleet_seen}"
+	"#{&&:#{&&:#{pane_active},#{window_active}},#{session_attached}}\t#{@ccfleet_seen}\t#{pane_pid}"
 
 // HaveTmux reports whether a tmux server is reachable.
 func HaveTmux() bool {
@@ -45,6 +46,9 @@ func parsePanes(out string) map[string]Pane {
 		}
 		p := Pane{ID: f[0], Session: f[1], WindowID: f[2], WindowIndex: f[3], WindowName: f[4], PaneIndex: f[5], Visible: f[6] == "1"}
 		p.SeenAt = parseInt64(f[7]) * 1000
+		if len(f) > 8 {
+			p.PID = int(parseInt64(f[8]))
+		}
 		panes[p.ID] = p
 	}
 	return panes
